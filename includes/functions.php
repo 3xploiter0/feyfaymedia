@@ -42,6 +42,127 @@ function e($str) {
     return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8');
 }
 
+// --- Security + input helpers ---
+
+if (!function_exists('csrf_token')) {
+    function csrf_token() {
+        if (empty($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        }
+        return $_SESSION['csrf_token'];
+    }
+}
+
+if (!function_exists('csrf_field')) {
+    function csrf_field() {
+        return '<input type="hidden" name="csrf_token" value="' . e(csrf_token()) . '">';
+    }
+}
+
+if (!function_exists('csrf_verify')) {
+    function csrf_verify() {
+        $token = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '';
+        return $token !== '' && hash_equals((string) csrf_token(), (string) $token);
+    }
+}
+
+function client_ip() {
+    $candidates = [
+        $_SERVER['HTTP_CF_CONNECTING_IP'] ?? '',
+        $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '',
+        $_SERVER['REMOTE_ADDR'] ?? '',
+    ];
+    foreach ($candidates as $raw) {
+        if ($raw === '') continue;
+        $parts = explode(',', $raw);
+        foreach ($parts as $p) {
+            $ip = trim($p);
+            if ($ip !== '' && filter_var($ip, FILTER_VALIDATE_IP)) return $ip;
+        }
+    }
+    return '0.0.0.0';
+}
+
+function sanitize_plain_text($text, $max_len = 255) {
+    $text = trim((string)$text);
+    $text = preg_replace('/[\x00-\x1F\x7F]/u', ' ', $text);
+    $text = preg_replace('/\s+/u', ' ', $text);
+    if ($max_len > 0) {
+        if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+            if (mb_strlen($text, 'UTF-8') > $max_len) $text = mb_substr($text, 0, $max_len, 'UTF-8');
+        } else {
+            if (strlen($text) > $max_len) $text = substr($text, 0, $max_len);
+        }
+    }
+    return trim($text);
+}
+
+function sanitize_post_content($html) {
+    $html = (string)$html;
+    $html = preg_replace('#<script\b[^>]*>.*?</script>#is', '', $html);
+    $html = preg_replace('/\son\w+\s*=\s*("|\').*?\1/iu', '', $html);
+    $html = preg_replace('/\son\w+\s*=\s*[^\s>]+/iu', '', $html);
+    $html = preg_replace('/(href|src)\s*=\s*([\'"])\s*javascript:[^\'"]*\2/iu', '$1="#"', $html);
+    $html = preg_replace('/(href|src)\s*=\s*([\'"])\s*data:text\/html[^\'"]*\2/iu', '$1="#"', $html);
+    $allowed = '<p><br><strong><b><em><i><u><s><blockquote><ul><ol><li><a><h2><h3><h4><h5><h6><img><figure><figcaption><iframe><hr><pre><code><span><div>';
+    $html = strip_tags($html, $allowed);
+    return trim($html);
+}
+
+function sanitize_embed_code($html) {
+    $html = (string)$html;
+    if (trim($html) === '') return '';
+    $html = preg_replace('#<script\b[^>]*>.*?</script>#is', '', $html);
+    $html = preg_replace('/\son\w+\s*=\s*("|\').*?\1/iu', '', $html);
+    $html = preg_replace('/\son\w+\s*=\s*[^\s>]+/iu', '', $html);
+    $allowed = '<iframe><audio><source><div><span><p><a><br>';
+    return trim(strip_tags($html, $allowed));
+}
+
+function normalize_http_url($url) {
+    $url = trim((string)$url);
+    if ($url === '') return '';
+    if (!preg_match('#^https?://#i', $url)) return '';
+    return filter_var($url, FILTER_VALIDATE_URL) ? $url : '';
+}
+
+function rate_limit_storage_file($key) {
+    $hash = hash('sha256', (string)$key);
+    return rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'feyfay_rl_' . $hash . '.json';
+}
+
+function rate_limit_read_hits($key, $window_seconds) {
+    $path = rate_limit_storage_file($key);
+    $now = time();
+    $window_start = $now - max(1, (int)$window_seconds);
+    if (!is_file($path)) return [];
+    $raw = @file_get_contents($path);
+    $data = is_string($raw) ? json_decode($raw, true) : [];
+    if (!is_array($data)) $data = [];
+    $hits = [];
+    foreach ($data as $t) {
+        $ts = (int)$t;
+        if ($ts >= $window_start && $ts <= $now) $hits[] = $ts;
+    }
+    return $hits;
+}
+
+function rate_limit_too_many($key, $limit, $window_seconds) {
+    $hits = rate_limit_read_hits($key, $window_seconds);
+    return count($hits) >= max(1, (int)$limit);
+}
+
+function rate_limit_hit($key, $window_seconds) {
+    $hits = rate_limit_read_hits($key, $window_seconds);
+    $hits[] = time();
+    @file_put_contents(rate_limit_storage_file($key), json_encode(array_values($hits)), LOCK_EX);
+}
+
+function rate_limit_clear($key) {
+    $path = rate_limit_storage_file($key);
+    if (is_file($path)) @unlink($path);
+}
+
 /**
  * Base URL of the site (works from root and from /admin)
  */
@@ -252,6 +373,161 @@ function posts_public_order_sql($alias = 'p') {
 }
 
 /**
+ * SQL expression to resolve event status from stored value/date fields.
+ */
+function event_status_sql_expr($alias = 'p') {
+    return "CASE
+        WHEN $alias.is_event = 0 THEN NULL
+        WHEN $alias.event_status IS NOT NULL AND $alias.event_status <> '' THEN $alias.event_status
+        WHEN $alias.event_start_at IS NULL THEN 'upcoming'
+        WHEN $alias.event_start_at > NOW() THEN 'upcoming'
+        WHEN $alias.event_end_at IS NOT NULL AND $alias.event_end_at < NOW() THEN 'completed'
+        ELSE 'ongoing'
+    END";
+}
+
+function event_effective_status($post) {
+    if (empty($post['is_event'])) return null;
+    $status = strtolower(trim((string)($post['event_status'] ?? '')));
+    if (in_array($status, ['upcoming', 'ongoing', 'completed', 'cancelled'], true)) {
+        return $status;
+    }
+    $start = !empty($post['event_start_at']) ? strtotime((string)$post['event_start_at']) : false;
+    $end = !empty($post['event_end_at']) ? strtotime((string)$post['event_end_at']) : false;
+    $now = time();
+    if ($start === false || $start > $now) return 'upcoming';
+    if ($end !== false && $end < $now) return 'completed';
+    return 'ongoing';
+}
+
+function event_status_label($status) {
+    $status = strtolower((string)$status);
+    $map = [
+        'upcoming' => 'Upcoming',
+        'ongoing' => 'Ongoing',
+        'completed' => 'Completed',
+        'cancelled' => 'Cancelled',
+    ];
+    return $map[$status] ?? 'Event';
+}
+
+function format_event_datetime($datetime) {
+    if (empty($datetime)) return '';
+    return date('M j, Y g:i A', strtotime((string)$datetime));
+}
+
+function format_event_date_range($start_at, $end_at = null) {
+    if (empty($start_at)) return 'Date TBA';
+    $start_ts = strtotime((string)$start_at);
+    if ($start_ts === false) return 'Date TBA';
+    if (empty($end_at)) return date('M j, Y g:i A', $start_ts);
+    $end_ts = strtotime((string)$end_at);
+    if ($end_ts === false) return date('M j, Y g:i A', $start_ts);
+    if (date('Ymd', $start_ts) === date('Ymd', $end_ts)) {
+        return date('M j, Y g:i A', $start_ts) . ' - ' . date('g:i A', $end_ts);
+    }
+    return date('M j, Y g:i A', $start_ts) . ' - ' . date('M j, Y g:i A', $end_ts);
+}
+
+function normalize_event_filters(array $filters) {
+    $normalized = [];
+    $normalized['q'] = sanitize_plain_text($filters['q'] ?? '', 120);
+    $status = strtolower(trim((string)($filters['status'] ?? '')));
+    $normalized['status'] = in_array($status, ['upcoming', 'ongoing', 'completed', 'cancelled'], true) ? $status : '';
+    $normalized['city'] = sanitize_plain_text($filters['city'] ?? '', 120);
+    $normalized['type'] = sanitize_plain_text($filters['type'] ?? '', 80);
+    $normalized['category_id'] = (int)($filters['category_id'] ?? 0);
+    $date_from = trim((string)($filters['date_from'] ?? ''));
+    $normalized['date_from'] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_from) ? $date_from : '';
+    $date_to = trim((string)($filters['date_to'] ?? ''));
+    $normalized['date_to'] = preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_to) ? $date_to : '';
+    return $normalized;
+}
+
+function build_event_filters_sql(array $filters, &$params, $alias = 'p') {
+    $filters = normalize_event_filters($filters);
+    $status_expr = event_status_sql_expr($alias);
+    $sql = " AND $alias.is_event = 1";
+
+    if ($filters['status'] !== '') {
+        $sql .= " AND ($status_expr = ?)";
+        $params[] = $filters['status'];
+    }
+    if ($filters['city'] !== '') {
+        $sql .= " AND $alias.event_city = ?";
+        $params[] = $filters['city'];
+    }
+    if ($filters['type'] !== '') {
+        $sql .= " AND $alias.event_type = ?";
+        $params[] = $filters['type'];
+    }
+    if ($filters['category_id'] > 0) {
+        $sql .= " AND $alias.category_id = ?";
+        $params[] = $filters['category_id'];
+    }
+    if ($filters['date_from'] !== '') {
+        $sql .= " AND $alias.event_start_at >= ?";
+        $params[] = $filters['date_from'] . ' 00:00:00';
+    }
+    if ($filters['date_to'] !== '') {
+        $sql .= " AND $alias.event_start_at <= ?";
+        $params[] = $filters['date_to'] . ' 23:59:59';
+    }
+    if ($filters['q'] !== '') {
+        $term = '%' . $filters['q'] . '%';
+        $sql .= " AND ($alias.title LIKE ? OR $alias.summary LIKE ? OR $alias.content LIKE ? OR $alias.event_location LIKE ? OR $alias.event_city LIKE ? OR $alias.event_type LIKE ?)";
+        $params[] = $term;
+        $params[] = $term;
+        $params[] = $term;
+        $params[] = $term;
+        $params[] = $term;
+        $params[] = $term;
+    }
+    return $sql;
+}
+
+function get_event_posts($pdo, array $filters = [], $limit = 12, $offset = 0) {
+    $params = [];
+    $status_expr = event_status_sql_expr('p');
+    $sql = "SELECT p.*, c.name AS category_name, c.slug AS category_slug, u.name AS author_name, $status_expr AS event_status_resolved
+            FROM posts p
+            JOIN categories c ON p.category_id = c.id
+            JOIN users u ON p.author_id = u.id
+            WHERE " . posts_public_visibility_sql('p');
+    $sql .= build_event_filters_sql($filters, $params, 'p');
+    $sql .= " ORDER BY FIELD($status_expr, 'ongoing', 'upcoming', 'completed', 'cancelled'), p.event_start_at ASC, p.created_at DESC
+             LIMIT ? OFFSET ?";
+    $params[] = (int)$limit;
+    $params[] = (int)$offset;
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
+}
+
+function count_event_posts($pdo, array $filters = []) {
+    $params = [];
+    $sql = "SELECT COUNT(*) FROM posts p WHERE " . posts_public_visibility_sql('p');
+    $sql .= build_event_filters_sql($filters, $params, 'p');
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return (int)$stmt->fetchColumn();
+}
+
+function get_event_filter_options($pdo) {
+    $cities = [];
+    $types = [];
+    $city_stmt = $pdo->query("SELECT DISTINCT event_city FROM posts p WHERE " . posts_public_visibility_sql('p') . " AND p.is_event = 1 AND p.event_city IS NOT NULL AND p.event_city <> '' ORDER BY event_city ASC");
+    while ($row = $city_stmt->fetch()) {
+        $cities[] = $row['event_city'];
+    }
+    $type_stmt = $pdo->query("SELECT DISTINCT event_type FROM posts p WHERE " . posts_public_visibility_sql('p') . " AND p.is_event = 1 AND p.event_type IS NOT NULL AND p.event_type <> '' ORDER BY event_type ASC");
+    while ($row = $type_stmt->fetch()) {
+        $types[] = $row['event_type'];
+    }
+    return ['cities' => $cities, 'types' => $types];
+}
+
+/**
  * Get display status for admin: 'draft', 'scheduled', or 'published'
  */
 function post_display_status($post) {
@@ -366,9 +642,9 @@ function search_posts($pdo, $q, $limit = 20, $offset = 0) {
                            JOIN categories c ON p.category_id = c.id 
                            JOIN users u ON p.author_id = u.id 
                            WHERE " . posts_public_visibility_sql('p') . " 
-                           AND (p.title LIKE ? OR p.summary LIKE ? OR p.content LIKE ?) 
+                           AND (p.title LIKE ? OR p.summary LIKE ? OR p.content LIKE ? OR p.event_location LIKE ? OR p.event_city LIKE ? OR p.event_type LIKE ?) 
                            ORDER BY " . posts_public_order_sql('p') . " LIMIT ? OFFSET ?");
-    $stmt->execute([$term, $term, $term, $limit, $offset]);
+    $stmt->execute([$term, $term, $term, $term, $term, $term, $limit, $offset]);
     return $stmt->fetchAll();
 }
 
@@ -379,8 +655,8 @@ function count_search_posts($pdo, $q) {
     $term = '%' . $q . '%';
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM posts p 
                            WHERE " . posts_public_visibility_sql('p') . " 
-                           AND (p.title LIKE ? OR p.summary LIKE ? OR p.content LIKE ?)");
-    $stmt->execute([$term, $term, $term]);
+                           AND (p.title LIKE ? OR p.summary LIKE ? OR p.content LIKE ? OR p.event_location LIKE ? OR p.event_city LIKE ? OR p.event_type LIKE ?)");
+    $stmt->execute([$term, $term, $term, $term, $term, $term]);
     return (int) $stmt->fetchColumn();
 }
 

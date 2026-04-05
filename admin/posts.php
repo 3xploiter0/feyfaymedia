@@ -8,7 +8,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/auth.php';
 
 require_admin();
-$admin_title = 'Posts';
+$admin_title = 'Event Updates';
 
 $stmt = $pdo->query("SELECT p.*, c.name AS category_name, u.name AS author_name FROM posts p LEFT JOIN categories c ON p.category_id = c.id LEFT JOIN users u ON p.author_id = u.id ORDER BY p.updated_at DESC");
 $posts = $stmt->fetchAll();
@@ -17,16 +17,18 @@ require_once __DIR__ . '/includes/header.php';
 ?>
 
 <div class="admin-content">
-    <h1>Posts</h1>
-    <p><a href="<?php echo base_url('admin/add-post.php'); ?>" class="btn btn-primary">Add New Post</a></p>
+    <h1>Event Updates</h1>
+    <p><a href="<?php echo base_url('admin/add-post.php'); ?>" class="btn btn-primary">Add Event Update</a></p>
     <?php if (empty($posts)): ?>
-    <p>No posts yet.</p>
+    <p>No event updates yet.</p>
     <?php else: ?>
     <table class="admin-table">
         <thead>
             <tr>
                 <th>Title</th>
                 <th>Category</th>
+                <th>Event</th>
+                <th>Start</th>
                 <th>Author</th>
                 <th>Status</th>
                 <th>Featured</th>
@@ -41,6 +43,16 @@ require_once __DIR__ . '/includes/header.php';
             <tr>
                 <td><?php echo e($p['title']); ?></td>
                 <td><?php echo e($p['category_name'] ?? '-'); ?></td>
+                <td>
+                    <?php if (!empty($p['is_event'])): ?>
+                        <?php $ev_status = event_effective_status($p); ?>
+                        <strong><?php echo e($p['event_type'] ?: 'Event'); ?></strong><br>
+                        <small><?php echo e($p['event_city'] ?: 'City TBA'); ?> · <?php echo e(event_status_label($ev_status)); ?></small>
+                    <?php else: ?>
+                        <small>Update only</small>
+                    <?php endif; ?>
+                </td>
+                <td><?php echo !empty($p['event_start_at']) ? e(format_event_datetime($p['event_start_at'])) : '-'; ?></td>
                 <td><?php echo e($p['author_name'] ?? '-'); ?></td>
                 <td><?php
                     $disp = post_display_status($p);

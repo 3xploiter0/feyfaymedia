@@ -17,7 +17,7 @@ $base = rtrim(base_url(), '/');
 echo "  <url>\n    <loc>" . $base . "/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n";
 
 // Static pages
-$static = [['about.php', 'monthly', '0.7'], ['live-radio.php', 'weekly', '0.7'], ['contact.php', 'monthly', '0.6']];
+$static = [['events.php', 'daily', '0.9'], ['about.php', 'monthly', '0.7'], ['live-radio.php', 'weekly', '0.7'], ['contact.php', 'monthly', '0.6']];
 foreach ($static as $s) {
     echo "  <url>\n    <loc>" . $base . '/' . $s[0] . "</loc>\n    <changefreq>{$s[1]}</changefreq>\n    <priority>{$s[2]}</priority>\n  </url>\n";
 }

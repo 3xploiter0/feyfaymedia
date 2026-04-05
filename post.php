@@ -36,6 +36,7 @@ $ads_article = $settings['ads_article'] ?? '';
 $share_url = $canonical_url;
 $share_title = rawurlencode($post['title']);
 $share_text = rawurlencode($meta_description);
+$event_status = event_effective_status($post);
 
 require_once __DIR__ . '/includes/header.php';
 ?>
@@ -59,6 +60,26 @@ require_once __DIR__ . '/includes/header.php';
             <img src="<?php echo base_url($post['image']); ?>" alt="<?php echo e($post['title']); ?>" loading="eager" fetchpriority="high">
         </div>
         <?php endif; ?>
+        <?php if (!empty($post['is_event'])): ?>
+        <div class="event-detail-card">
+            <div class="event-detail-head">
+                <span class="event-status-badge event-status-<?php echo e($event_status); ?>"><?php echo e(event_status_label($event_status)); ?></span>
+                <?php if (!empty($post['event_type'])): ?><span class="event-detail-type"><?php echo e($post['event_type']); ?></span><?php endif; ?>
+            </div>
+            <div class="event-detail-grid">
+                <div>
+                    <strong>Date &amp; Time:</strong>
+                    <span><?php echo e(format_event_date_range($post['event_start_at'], $post['event_end_at'])); ?></span>
+                </div>
+                <?php if (!empty($post['event_location']) || !empty($post['event_city'])): ?>
+                <div>
+                    <strong>Location:</strong>
+                    <span><?php echo e(trim(($post['event_location'] ?? '') . (!empty($post['event_city']) ? ', ' . $post['event_city'] : ''))); ?></span>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
         <?php if ($ads_article): ?>
         <div class="ads ads-article">
             <div class="ad-placeholder"><?php echo $ads_article; ?></div>
@@ -80,11 +101,11 @@ require_once __DIR__ . '/includes/header.php';
     </div>
 </article>
 
-<!-- Related posts -->
+<!-- Related event updates -->
 <?php if (!empty($related)): ?>
 <section class="related-section">
     <div class="container">
-        <h2 class="section-heading">Related Articles</h2>
+        <h2 class="section-heading">Related Event Updates</h2>
         <div class="posts-grid three-col">
             <?php foreach ($related as $p): ?>
             <article class="post-card">
@@ -122,7 +143,7 @@ require_once __DIR__ . '/includes/header.php';
             <?php endif; ?>
         </div>
         <!-- Social share -->
-        <div class="share-buttons" aria-label="Share this article">
+        <div class="share-buttons" aria-label="Share this event update">
             <span class="share-label">Share:</span>
             <a href="https://twitter.com/intent/tweet?url=<?php echo rawurlencode($share_url); ?>&text=<?php echo $share_title; ?>" target="_blank" rel="noopener noreferrer" class="share-btn share-twitter" aria-label="Share on Twitter">Twitter</a>
             <a href="https://www.facebook.com/sharer/sharer.php?u=<?php echo rawurlencode($share_url); ?>" target="_blank" rel="noopener noreferrer" class="share-btn share-facebook" aria-label="Share on Facebook">Facebook</a>
@@ -130,7 +151,9 @@ require_once __DIR__ . '/includes/header.php';
             <a href="https://wa.me/?text=<?php echo $share_title; ?>%20<?php echo rawurlencode($share_url); ?>" target="_blank" rel="noopener noreferrer" class="share-btn share-whatsapp" aria-label="Share on WhatsApp">WhatsApp</a>
         </div>
         <form class="comment-form" id="commentForm" action="<?php echo base_url('ajax/comment.php'); ?>" method="post">
+            <?php echo csrf_field(); ?>
             <input type="hidden" name="post_id" value="<?php echo (int)$post['id']; ?>">
+            <input type="text" name="website" value="" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;opacity:0;">
             <div class="form-row">
                 <div class="form-group">
                     <label for="comment_name">Name *</label>
@@ -167,7 +190,8 @@ document.addEventListener('DOMContentLoaded', function() {
             var xhr = new XMLHttpRequest();
             xhr.open('POST', form.action);
             xhr.onload = function() {
-                var res = JSON.parse(xhr.responseText || '{}');
+                var res = {};
+                try { res = JSON.parse(xhr.responseText || '{}'); } catch (e) {}
                 var text = res.message || (res.success ? 'Thank you. Your comment will appear after approval.' : 'Sorry, something went wrong.');
                 if (window.FeyFayToast && typeof window.FeyFayToast.show === 'function') {
                     window.FeyFayToast.show(text, res.success ? 'success' : 'error');

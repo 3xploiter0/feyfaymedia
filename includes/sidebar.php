@@ -16,6 +16,11 @@ $radio_button_text = trim($settings['radio_button_text'] ?? '') ?: 'Listen Live'
 $show_radio_widget = $radio_name && ($stream_url !== '' || $embed_code !== '');
 ?>
 <aside class="sidebar">
+    <div class="sidebar-block">
+        <h3 class="sidebar-title">Find Events</h3>
+        <p>Browse upcoming opportunities by city, type, and date.</p>
+        <p><a class="btn btn-primary btn-small" href="<?php echo base_url('events.php'); ?>">Explore Events</a></p>
+    </div>
     <?php if ($show_radio_widget): ?>
     <div class="sidebar-block radio-widget">
         <h3 class="sidebar-title"><?php echo e($radio_name); ?></h3>
@@ -43,13 +48,13 @@ $show_radio_widget = $radio_name && ($stream_url !== '' || $embed_code !== '');
         </ul>
     </div>
     <div class="sidebar-block">
-        <h3 class="sidebar-title">Recent Posts</h3>
+        <h3 class="sidebar-title">Recent Event Updates</h3>
         <ul class="sidebar-list">
             <?php foreach ($recent as $p): ?>
             <li><a href="<?php echo base_url('post.php?slug=' . e($p['slug'])); ?>"><?php echo e($p['title']); ?></a></li>
             <?php endforeach; ?>
             <?php if (empty($recent)): ?>
-            <li>No posts yet.</li>
+            <li>No event updates yet.</li>
             <?php endif; ?>
         </ul>
     </div>
@@ -59,10 +64,12 @@ $show_radio_widget = $radio_name && ($stream_url !== '' || $embed_code !== '');
     </div>
     <?php endif; ?>
     <div class="sidebar-block newsletter">
-        <h3 class="sidebar-title">Newsletter</h3>
-        <p>Subscribe for the latest news.</p>
+        <h3 class="sidebar-title">Event Updates</h3>
+        <p>Subscribe for the latest events and announcements.</p>
         <form class="newsletter-form" action="<?php echo base_url('contact.php'); ?>" method="post" id="newsletterForm">
+            <?php echo csrf_field(); ?>
             <input type="hidden" name="newsletter" value="1">
+            <input type="text" name="website" value="" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;opacity:0;">
             <input type="email" name="email" placeholder="Your email" required aria-label="Email">
             <button type="submit">Subscribe</button>
         </form>

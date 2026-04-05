@@ -18,9 +18,9 @@ require_once __DIR__ . '/includes/header.php';
         <article>
             <h1 class="page-title">About <?php echo $site_name; ?></h1>
             <div class="static-content">
-                <p><?php echo $site_name; ?> is your trusted source for timely, accurate news. We deliver quality journalism across technology, politics, business, sports, and entertainment.</p>
+                <p><?php echo $site_name; ?> ni jukwaa rasmi la kukuletea taarifa sahihi za matukio na shughuli mbalimbali zinazofanyika Tanzania na nje ya mipaka yake.</p>
                 <h2>Our Mission</h2>
-                <p>To provide clear, factual reporting that helps our audience understand the world.</p>
+                <p>Kukuunganisha na fursa za kujenga mahusiano, mtandao wa kazi, huduma, na ushirikiano kupitia taarifa za matukio yaliyothibitishwa.</p>
                 <h2>Contact</h2>
                 <p><a href="<?php echo base_url('contact.php'); ?>">Get in touch</a> for tips or inquiries.</p>
             </div>

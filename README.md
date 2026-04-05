@@ -6,6 +6,7 @@ FeyFay Media is a PHP + MySQL news CMS with a public news site and an admin dash
 
 ### Public site
 - Homepage with breaking ticker, featured hero, latest grid, category blocks, and sidebar widgets
+- Dedicated `events.php` page with filters (status, city, type, category, date range)
 - Single post page with tags, related posts, sponsored badge, comments, and SEO metadata
 - Scheduled publishing support (future posts become visible at `published_at`)
 - Category archive and paginated search
@@ -18,6 +19,7 @@ FeyFay Media is a PHP + MySQL news CMS with a public news site and an admin dash
 - Role-based access: `staff` and `admin`
 - Secure login/logout with session regeneration and CSRF token
 - Post management with TinyMCE editor, tags, featured/sponsored flags, draft/published/scheduled states
+- Event metadata management per update: type, city, venue, start/end datetime, event status
 - Comment moderation (approve/delete)
 - Category management (admin-only add/delete)
 - Site settings and ad zones (admin-only)
@@ -30,6 +32,7 @@ FeyFay Media is a PHP + MySQL news CMS with a public news site and an admin dash
 - File upload validation for post images
 - Escaped output with `htmlspecialchars()`
 - Indexed queries for public post ordering and trending
+- Security hardening: public-form CSRF, rate limiting, anti-bot honeypot, stricter session handling, Apache upload-execution blocking
 
 ## Requirements
 
@@ -103,6 +106,7 @@ FeyFay/
 │   ├── schema.sql
 │   └── migrate_production.sql
 ├── index.php, post.php, category.php, search.php
+├── events.php
 ├── live-radio.php, about.php, contact.php, 404.php
 ├── sitemap.php, robots.txt
 ├── USER-GUIDE.md
@@ -114,6 +118,7 @@ FeyFay/
 - `users`: account profile, password hash, role (`staff|admin`), `is_active`
 - `categories`: category name + slug
 - `posts`: content, SEO, featured/sponsored flags, `published_at`, views
+- `posts` event fields: `is_event`, `event_type`, `event_city`, `event_location`, `event_start_at`, `event_end_at`, `event_status`
 - `tags`, `post_tags`: tag system
 - `comments`: pending/approved moderation queue
 - `settings`: site identity, social links, ads, footer/admin link toggle, live radio fields
@@ -139,6 +144,7 @@ Live radio is configured in `Admin -> Live Radio` and displayed on:
 3. Update `robots.txt` with your real sitemap URL.
 4. Submit `https://yourdomain/sitemap.php` to search consoles.
 5. Set DB credentials and mail settings for your environment.
+6. Review `HARDENING-NOTES.md` and enable `.htaccess` support (`AllowOverride All`) on Apache.
 
 ## GitHub Push Checklist
 

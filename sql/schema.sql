@@ -47,6 +47,13 @@ CREATE TABLE posts (
     published_at DATETIME DEFAULT NULL,
     is_featured TINYINT(1) DEFAULT 0,
     is_sponsored TINYINT(1) DEFAULT 0,
+    is_event TINYINT(1) DEFAULT 0,
+    event_type VARCHAR(80) DEFAULT NULL,
+    event_city VARCHAR(120) DEFAULT NULL,
+    event_location VARCHAR(255) DEFAULT NULL,
+    event_start_at DATETIME DEFAULT NULL,
+    event_end_at DATETIME DEFAULT NULL,
+    event_status ENUM('upcoming', 'ongoing', 'completed', 'cancelled') DEFAULT NULL,
     views INT UNSIGNED DEFAULT 0,
     meta_title VARCHAR(255) DEFAULT NULL,
     meta_description VARCHAR(320) DEFAULT NULL,
@@ -61,7 +68,11 @@ CREATE TABLE posts (
     INDEX idx_featured (is_featured),
     INDEX idx_status_created (status, created_at),
     INDEX idx_status_views (status, views),
-    INDEX idx_published_at (published_at)
+    INDEX idx_published_at (published_at),
+    INDEX idx_is_event_start (is_event, event_start_at),
+    INDEX idx_event_status (event_status),
+    INDEX idx_event_city (event_city),
+    INDEX idx_event_type (event_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ------------------------------------------------------------
@@ -105,7 +116,7 @@ CREATE TABLE comments (
 -- ------------------------------------------------------------
 CREATE TABLE settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    site_name VARCHAR(100) NOT NULL DEFAULT 'FeyFay Media',
+    site_name VARCHAR(100) NOT NULL DEFAULT 'FEYFAY INVESTMENT',
     site_logo VARCHAR(255) DEFAULT NULL,
     site_description TEXT,
     contact_email VARCHAR(100) DEFAULT NULL,
@@ -146,14 +157,14 @@ CREATE TABLE subscribers (
 INSERT INTO users (name, username, email, password, role) VALUES
 ('Admin', 'admin', 'admin@feyfaymedia.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
 
--- Sample categories
+-- Sample categories (event focused)
 INSERT INTO categories (name, slug) VALUES
-('Technology', 'technology'),
-('Politics', 'politics'),
-('Business', 'business'),
-('Sports', 'sports'),
-('Entertainment', 'entertainment');
+('Business Events', 'business-events'),
+('Networking', 'networking'),
+('Investment Forums', 'investment-forums'),
+('Community Programs', 'community-programs'),
+('Career Opportunities', 'career-opportunities');
 
 -- Single row for settings
 INSERT INTO settings (id, site_name, site_description, contact_email, footer_text) VALUES
-(1, 'FeyFay Media', 'Your Trusted Source for News', 'contact@feyfaymedia.com', '© 2025 FeyFay Media. All rights reserved.');
+(1, 'FEYFAY INVESTMENT', 'Jukwaa rasmi la taarifa sahihi kuhusu matukio na fursa za kuunganisha jamii.', 'contact@feyfaymedia.com', '© 2025 FEYFAY INVESTMENT. All rights reserved.');

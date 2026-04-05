@@ -35,12 +35,12 @@ if (!$post) {
     exit;
 }
 
-$admin_title = 'Delete Post';
+$admin_title = 'Delete Event Update';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
 <div class="admin-content">
-    <h1>Delete Post</h1>
+    <h1>Delete Event Update</h1>
     <p>Are you sure you want to delete <strong><?php echo e($post['title']); ?></strong>? This cannot be undone.</p>
     <form method="post" class="admin-form">
         <?php echo csrf_field(); ?>

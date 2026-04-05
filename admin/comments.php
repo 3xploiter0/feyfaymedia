@@ -41,7 +41,7 @@ require_once __DIR__ . '/includes/header.php';
     <table class="admin-table">
         <thead>
             <tr>
-                <th>Post</th>
+                <th>Event Update</th>
                 <th>Author</th>
                 <th>Comment</th>
                 <th>Status</th>

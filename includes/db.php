@@ -6,8 +6,8 @@
 
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'feyfay_media');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_USER', 'feyfay_user');
+define('DB_PASS', 'raymond');
 define('DB_CHARSET', 'utf8mb4');
 
 try {

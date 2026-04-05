@@ -13,6 +13,9 @@ require_admin();
 $admin_title = 'Dashboard';
 
 $total_posts = (int) $pdo->query("SELECT COUNT(*) FROM posts")->fetchColumn();
+$total_events = (int) $pdo->query("SELECT COUNT(*) FROM posts WHERE is_event = 1")->fetchColumn();
+$event_status_expr = event_status_sql_expr('p');
+$upcoming_events = (int) $pdo->query("SELECT COUNT(*) FROM posts p WHERE p.is_event = 1 AND " . posts_public_visibility_sql('p') . " AND ($event_status_expr = 'upcoming' OR $event_status_expr = 'ongoing')")->fetchColumn();
 $total_categories = (int) $pdo->query("SELECT COUNT(*) FROM categories")->fetchColumn();
 $total_comments = (int) $pdo->query("SELECT COUNT(*) FROM comments")->fetchColumn();
 
@@ -30,7 +33,15 @@ require_once __DIR__ . '/includes/header.php';
     <div class="dashboard-stats">
         <div class="stat-card">
             <span class="stat-number"><?php echo $total_posts; ?></span>
-            <span class="stat-label">Total Posts</span>
+            <span class="stat-label">Total Event Updates</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number"><?php echo $total_events; ?></span>
+            <span class="stat-label">Total Events</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number"><?php echo $upcoming_events; ?></span>
+            <span class="stat-label">Upcoming / Ongoing</span>
         </div>
         <div class="stat-card">
             <span class="stat-number"><?php echo $total_categories; ?></span>
@@ -42,19 +53,19 @@ require_once __DIR__ . '/includes/header.php';
         </div>
     </div>
     <div class="dashboard-actions">
-        <a href="<?php echo base_url('admin/add-post.php'); ?>" class="btn btn-primary">Add New Post</a>
-        <a href="<?php echo base_url('admin/posts.php'); ?>" class="btn btn-secondary">Posts</a>
+        <a href="<?php echo base_url('admin/add-post.php'); ?>" class="btn btn-primary">Add Event Update</a>
+        <a href="<?php echo base_url('admin/posts.php'); ?>" class="btn btn-secondary">Event Updates</a>
         <a href="<?php echo base_url('admin/comments.php'); ?>" class="btn btn-secondary">Comments</a>
         <?php if (can_manage_settings()): ?><a href="<?php echo base_url('admin/settings.php'); ?>" class="btn btn-secondary">Settings</a><?php endif; ?>
     </div>
     <div class="dashboard-grid">
         <section class="dashboard-section">
-            <h2>Recent Posts</h2>
+            <h2>Recent Event Updates</h2>
             <?php if (empty($recent_posts)): ?>
-            <p>No posts yet. <a href="<?php echo base_url('admin/add-post.php'); ?>">Create one</a>.</p>
+            <p>No event updates yet. <a href="<?php echo base_url('admin/add-post.php'); ?>">Create one</a>.</p>
             <?php else: ?>
             <table class="admin-table">
-                <thead><tr><th>Title</th><th>Category</th><th>Status</th><th>Updated</th><th></th></tr></thead>
+                <thead><tr><th>Title</th><th>Category</th><th>Event Start</th><th>Status</th><th>Updated</th><th></th></tr></thead>
                 <tbody>
                 <?php foreach ($recent_posts as $p):
                     $disp = post_display_status($p);
@@ -62,6 +73,7 @@ require_once __DIR__ . '/includes/header.php';
                 <tr>
                     <td><?php echo e($p['title']); ?></td>
                     <td><?php echo e($p['category_name'] ?? '-'); ?></td>
+                    <td><?php echo !empty($p['event_start_at']) ? e(format_event_datetime($p['event_start_at'])) : '-'; ?></td>
                     <td><span class="status-badge status-<?php echo e($disp); ?>"><?php echo e($disp); ?></span><?php if ($disp === 'scheduled' && !empty($p['published_at'])): ?> <small><?php echo format_datetime($p['published_at']); ?></small><?php endif; ?></td>
                     <td><?php echo format_datetime($p['updated_at']); ?></td>
                     <td><a href="<?php echo base_url('admin/edit-post.php?id=' . $p['id']); ?>">Edit</a></td>

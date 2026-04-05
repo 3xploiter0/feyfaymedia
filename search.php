@@ -32,7 +32,7 @@ require_once __DIR__ . '/includes/header.php';
         <section class="section search-page">
             <h1 class="page-title">Search</h1>
             <form class="search-form" action="<?php echo base_url('search.php'); ?>" method="get">
-                <input type="search" name="q" value="<?php echo e($q); ?>" placeholder="Search articles..." required>
+                <input type="search" name="q" value="<?php echo e($q); ?>" placeholder="Search event updates..." required>
                 <button type="submit" class="btn btn-primary">Search</button>
             </form>
             <?php if ($q === ''): ?>
@@ -54,6 +54,13 @@ require_once __DIR__ . '/includes/header.php';
                     <div class="post-card-body">
                         <a href="<?php echo base_url('category.php?slug=' . e($post['category_slug'])); ?>" class="cat-badge"><?php echo e($post['category_name']); ?></a>
                         <h3><a href="<?php echo base_url('post.php?slug=' . e($post['slug'])); ?>"><?php echo e($post['title']); ?></a></h3>
+                        <?php if (!empty($post['is_event'])): ?>
+                        <?php $status = event_effective_status($post); ?>
+                        <div class="event-inline-meta">
+                            <span class="event-status-badge event-status-<?php echo e($status); ?>"><?php echo e(event_status_label($status)); ?></span>
+                            <span><?php echo e(format_event_date_range($post['event_start_at'], $post['event_end_at'])); ?></span>
+                        </div>
+                        <?php endif; ?>
                         <p class="excerpt"><?php echo e(excerpt($post['summary'] ?: $post['content'], 120)); ?></p>
                         <span class="meta"><?php echo format_date($post['created_at']); ?></span>
                     </div>

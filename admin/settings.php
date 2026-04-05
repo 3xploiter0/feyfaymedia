@@ -15,19 +15,22 @@ $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) { header('Location: settings.php'); exit; }
-    $site_name = trim($_POST['site_name'] ?? '');
-    $site_description = trim($_POST['site_description'] ?? '');
-    $contact_email = trim($_POST['contact_email'] ?? '');
-    $phone = trim($_POST['phone'] ?? '');
-    $facebook = trim($_POST['facebook'] ?? '');
-    $twitter = trim($_POST['twitter'] ?? '');
-    $instagram = trim($_POST['instagram'] ?? '');
-    $youtube = trim($_POST['youtube'] ?? '');
-    $footer_text = trim($_POST['footer_text'] ?? '');
-    $ads_header = trim($_POST['ads_header'] ?? '');
-    $ads_sidebar = trim($_POST['ads_sidebar'] ?? '');
-    $ads_article = trim($_POST['ads_article'] ?? '');
-    $ads_homepage = trim($_POST['ads_homepage'] ?? '');
+    $site_name = sanitize_plain_text($_POST['site_name'] ?? '', 100);
+    if ($site_name === '') $site_name = DEFAULT_SITE_NAME;
+    $site_description = trim((string)($_POST['site_description'] ?? ''));
+    $site_description = strip_tags($site_description);
+    $contact_email = strtolower(trim($_POST['contact_email'] ?? ''));
+    $contact_email = ($contact_email !== '' && filter_var($contact_email, FILTER_VALIDATE_EMAIL)) ? $contact_email : null;
+    $phone = sanitize_plain_text($_POST['phone'] ?? '', 50);
+    $facebook = normalize_http_url($_POST['facebook'] ?? '');
+    $twitter = normalize_http_url($_POST['twitter'] ?? '');
+    $instagram = normalize_http_url($_POST['instagram'] ?? '');
+    $youtube = normalize_http_url($_POST['youtube'] ?? '');
+    $footer_text = strip_tags(trim((string)($_POST['footer_text'] ?? '')));
+    $ads_header = str_replace("\0", '', trim((string)($_POST['ads_header'] ?? '')));
+    $ads_sidebar = str_replace("\0", '', trim((string)($_POST['ads_sidebar'] ?? '')));
+    $ads_article = str_replace("\0", '', trim((string)($_POST['ads_article'] ?? '')));
+    $ads_homepage = str_replace("\0", '', trim((string)($_POST['ads_homepage'] ?? '')));
     $show_admin_link = isset($_POST['show_admin_link']) ? 1 : 0;
 
     $stmt = $pdo->prepare("UPDATE settings SET site_name=?, site_description=?, contact_email=?, phone=?, facebook=?, twitter=?, instagram=?, youtube=?, footer_text=?, ads_header=?, ads_sidebar=?, ads_article=?, ads_homepage=?, show_admin_link=? WHERE id=1");
@@ -109,7 +112,7 @@ require_once __DIR__ . '/includes/header.php';
             <textarea id="ads_article" name="ads_article" rows="3"><?php echo e($settings['ads_article'] ?? ''); ?></textarea>
         </div>
         <div class="form-group">
-            <label for="ads_homepage">Homepage Ad (between Latest News and category sections)</label>
+            <label for="ads_homepage">Homepage Ad (between Latest Event Updates and category sections)</label>
             <textarea id="ads_homepage" name="ads_homepage" rows="3"><?php echo e($settings['ads_homepage'] ?? ''); ?></textarea>
         </div>
         <button type="submit" class="btn btn-primary">Save Settings</button>

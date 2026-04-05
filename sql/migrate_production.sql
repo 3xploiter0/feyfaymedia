@@ -94,8 +94,162 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- Step 2: migrate role to staff/admin (safe when current ENUM is admin/editor/author)
-ALTER TABLE users ADD COLUMN role_new ENUM('staff', 'admin') NOT NULL DEFAULT 'staff' AFTER role;
-UPDATE users SET role_new = IF(role = 'admin', 'admin', 'staff');
-ALTER TABLE users DROP COLUMN role;
-ALTER TABLE users CHANGE COLUMN role_new role ENUM('staff', 'admin') NOT NULL DEFAULT 'staff';
+-- Step 2: migrate role to staff/admin only when legacy role type includes editor/author
+SET @legacy_role = (SELECT IFNULL(COLUMN_TYPE, '') FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role' LIMIT 1);
+
+SET @needs_role_migration = (SELECT IF(@legacy_role LIKE '%editor%' OR @legacy_role LIKE '%author%', 1, 0));
+
+SET @sql = (SELECT IF(
+    @needs_role_migration = 1 AND
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role_new') = 0,
+    'ALTER TABLE users ADD COLUMN role_new ENUM(''staff'', ''admin'') NOT NULL DEFAULT ''staff'' AFTER role',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    @needs_role_migration = 1 AND
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role_new') = 1,
+    'UPDATE users SET role_new = IF(role = ''admin'', ''admin'', ''staff'')',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    @needs_role_migration = 1,
+    'ALTER TABLE users DROP COLUMN role',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    @needs_role_migration = 1 AND
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role_new') = 1,
+    'ALTER TABLE users CHANGE COLUMN role_new role ENUM(''staff'', ''admin'') NOT NULL DEFAULT ''staff''',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Event model columns on posts
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND COLUMN_NAME = 'is_event') = 0,
+    'ALTER TABLE posts ADD COLUMN is_event TINYINT(1) DEFAULT 0 AFTER is_sponsored',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND COLUMN_NAME = 'event_type') = 0,
+    'ALTER TABLE posts ADD COLUMN event_type VARCHAR(80) DEFAULT NULL AFTER is_event',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND COLUMN_NAME = 'event_city') = 0,
+    'ALTER TABLE posts ADD COLUMN event_city VARCHAR(120) DEFAULT NULL AFTER event_type',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND COLUMN_NAME = 'event_location') = 0,
+    'ALTER TABLE posts ADD COLUMN event_location VARCHAR(255) DEFAULT NULL AFTER event_city',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND COLUMN_NAME = 'event_start_at') = 0,
+    'ALTER TABLE posts ADD COLUMN event_start_at DATETIME DEFAULT NULL AFTER event_location',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND COLUMN_NAME = 'event_end_at') = 0,
+    'ALTER TABLE posts ADD COLUMN event_end_at DATETIME DEFAULT NULL AFTER event_start_at',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND COLUMN_NAME = 'event_status') = 0,
+    'ALTER TABLE posts ADD COLUMN event_status ENUM(''upcoming'', ''ongoing'', ''completed'', ''cancelled'') DEFAULT NULL AFTER event_end_at',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Event indexes
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND INDEX_NAME = 'idx_is_event_start') = 0,
+    'ALTER TABLE posts ADD INDEX idx_is_event_start (is_event, event_start_at)',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND INDEX_NAME = 'idx_event_status') = 0,
+    'ALTER TABLE posts ADD INDEX idx_event_status (event_status)',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND INDEX_NAME = 'idx_event_city') = 0,
+    'ALTER TABLE posts ADD INDEX idx_event_city (event_city)',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND INDEX_NAME = 'idx_event_type') = 0,
+    'ALTER TABLE posts ADD INDEX idx_event_type (event_type)',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

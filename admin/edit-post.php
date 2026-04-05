@@ -17,7 +17,7 @@ $stmt->execute([$id]);
 $post = $stmt->fetch();
 if (!$post) redirect(base_url('admin/posts.php'));
 
-$admin_title = 'Edit Post';
+$admin_title = 'Edit Event Update';
 $categories = get_categories($pdo);
 $tags_list = get_tags_for_post($pdo, $id);
 $tags_str = implode(', ', array_column($tags_list, 'name'));
@@ -25,23 +25,65 @@ $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) { header('Location: edit-post.php?id=' . $id); exit; }
-    $title = trim($_POST['title'] ?? '');
-    $summary = trim($_POST['summary'] ?? '');
-    $content = $_POST['content'] ?? '';
+    $title = sanitize_plain_text($_POST['title'] ?? '', 255);
+    $summary = sanitize_plain_text($_POST['summary'] ?? '', 600);
+    $content = sanitize_post_content($_POST['content'] ?? '');
     $category_id = (int)($_POST['category_id'] ?? 0);
     $publish_mode = $_POST['publish_mode'] ?? 'draft';
     $scheduled_at = trim($_POST['scheduled_at'] ?? '');
     $is_featured = isset($_POST['is_featured']) ? 1 : 0;
     $is_sponsored = isset($_POST['is_sponsored']) ? 1 : 0;
-    $meta_title = trim($_POST['meta_title'] ?? '');
-    $meta_description = trim($_POST['meta_description'] ?? '');
-    $tags_input = trim($_POST['tags'] ?? '');
+    $is_event = isset($_POST['is_event']) ? 1 : 0;
+    $event_type = sanitize_plain_text($_POST['event_type'] ?? '', 80);
+    $event_city = sanitize_plain_text($_POST['event_city'] ?? '', 120);
+    $event_location = sanitize_plain_text($_POST['event_location'] ?? '', 255);
+    $event_start_at_input = trim((string)($_POST['event_start_at'] ?? ''));
+    $event_end_at_input = trim((string)($_POST['event_end_at'] ?? ''));
+    $event_status = strtolower(trim((string)($_POST['event_status'] ?? '')));
+    if (!in_array($event_status, ['upcoming', 'ongoing', 'completed', 'cancelled'], true)) {
+        $event_status = 'upcoming';
+    }
+    $meta_title = sanitize_plain_text($_POST['meta_title'] ?? '', 255);
+    $meta_description = sanitize_plain_text($_POST['meta_description'] ?? '', 320);
+    $tags_input = sanitize_plain_text($_POST['tags'] ?? '', 400);
 
     if (!$title) $errors[] = 'Title is required.';
+    if ($title !== '' && strlen($title) < 3) $errors[] = 'Title must be at least 3 characters.';
     if (!$category_id) $errors[] = 'Select a category.';
-    if (trim($content) === '') $errors[] = 'Content is required.';
+    if ($content === '') $errors[] = 'Content is required.';
     if ($publish_mode === 'schedule' && $scheduled_at === '') $errors[] = 'Please choose a date and time for scheduling.';
-    if ($publish_mode === 'schedule' && $scheduled_at !== '' && strtotime($scheduled_at) <= time()) $errors[] = 'Scheduled time must be in the future.';
+    if ($publish_mode === 'schedule' && $scheduled_at !== '' && (strtotime($scheduled_at) === false || strtotime($scheduled_at) <= time())) $errors[] = 'Scheduled time must be in the future.';
+
+    $event_start_at = null;
+    $event_end_at = null;
+    if ($is_event) {
+        if ($event_start_at_input === '') {
+            $errors[] = 'Event start date and time is required.';
+        } else {
+            $start_ts = strtotime($event_start_at_input);
+            if ($start_ts === false) {
+                $errors[] = 'Invalid event start date.';
+            } else {
+                $event_start_at = date('Y-m-d H:i:s', $start_ts);
+            }
+        }
+        if ($event_end_at_input !== '') {
+            $end_ts = strtotime($event_end_at_input);
+            if ($end_ts === false) {
+                $errors[] = 'Invalid event end date.';
+            } else {
+                $event_end_at = date('Y-m-d H:i:s', $end_ts);
+            }
+        }
+        if ($event_start_at && $event_end_at && strtotime($event_end_at) < strtotime($event_start_at)) {
+            $errors[] = 'Event end time must be after start time.';
+        }
+    } else {
+        $event_type = '';
+        $event_city = '';
+        $event_location = '';
+        $event_status = '';
+    }
 
     $status = 'draft';
     $published_at = null;
@@ -79,8 +121,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        $stmt = $pdo->prepare("UPDATE posts SET title=?, slug=?, summary=?, content=?, image=?, category_id=?, status=?, published_at=?, is_featured=?, is_sponsored=?, meta_title=?, meta_description=? WHERE id=?");
-        $stmt->execute([$title, $slug, $summary, $content, $image_path, $category_id, $status, $published_at, $is_featured, $is_sponsored, $meta_title ?: null, $meta_description ?: null, $id]);
+        $stmt = $pdo->prepare("UPDATE posts SET title=?, slug=?, summary=?, content=?, image=?, category_id=?, status=?, published_at=?, is_featured=?, is_sponsored=?, is_event=?, event_type=?, event_city=?, event_location=?, event_start_at=?, event_end_at=?, event_status=?, meta_title=?, meta_description=? WHERE id=?");
+        $stmt->execute([
+            $title, $slug, $summary, $content, $image_path, $category_id, $status, $published_at, $is_featured, $is_sponsored,
+            $is_event, $event_type ?: null, $event_city ?: null, $event_location ?: null, $event_start_at, $event_end_at, $event_status ?: null,
+            $meta_title ?: null, $meta_description ?: null, $id
+        ]);
 
         $pdo->prepare("DELETE FROM post_tags WHERE post_id = ?")->execute([$id]);
         if ($tags_input !== '') {
@@ -101,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare("INSERT IGNORE INTO post_tags (post_id, tag_id) VALUES (?, ?)")->execute([$id, $tag_id]);
             }
         }
-        toast_add_flash('success', 'Post updated successfully.');
+        toast_add_flash('success', 'Event update saved successfully.');
         redirect(base_url('admin/posts.php'));
     }
 } else {
@@ -110,6 +156,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_POST['meta_title'] = $post['meta_title'];
     $_POST['meta_description'] = $post['meta_description'];
     $_POST['is_featured'] = $post['is_featured'];
+    $_POST['is_sponsored'] = $post['is_sponsored'];
+    $_POST['is_event'] = $post['is_event'];
+    $_POST['event_type'] = $post['event_type'];
+    $_POST['event_city'] = $post['event_city'];
+    $_POST['event_location'] = $post['event_location'];
+    $_POST['event_status'] = $post['event_status'] ?: 'upcoming';
+    $_POST['event_start_at'] = !empty($post['event_start_at']) ? date('Y-m-d\TH:i', strtotime($post['event_start_at'])) : '';
+    $_POST['event_end_at'] = !empty($post['event_end_at']) ? date('Y-m-d\TH:i', strtotime($post['event_end_at'])) : '';
     if ($post['status'] === 'draft') {
         $_POST['publish_mode'] = 'draft';
         $_POST['scheduled_at'] = '';
@@ -131,16 +185,16 @@ require_once __DIR__ . '/includes/header.php';
 ?>
 
 <div class="admin-content">
-    <h1>Edit Post</h1>
+    <h1>Edit Event Update</h1>
     <form method="post" enctype="multipart/form-data" class="admin-form post-form">
         <?php echo csrf_field(); ?>
         <div class="form-group">
             <label for="title">Title *</label>
-            <input type="text" id="title" name="title" required value="<?php echo e($post['title']); ?>">
+            <input type="text" id="title" name="title" required value="<?php echo e($_POST['title'] ?? $post['title']); ?>">
         </div>
         <div class="form-group">
             <label for="summary">Summary</label>
-            <textarea id="summary" name="summary" rows="3"><?php echo e($post['summary']); ?></textarea>
+            <textarea id="summary" name="summary" rows="3"><?php echo e($_POST['summary'] ?? $post['summary']); ?></textarea>
         </div>
         <div class="form-group">
             <label for="content">Content *</label>
@@ -151,7 +205,7 @@ require_once __DIR__ . '/includes/header.php';
                 <label for="category_id">Category *</label>
                 <select id="category_id" name="category_id" required>
                     <?php foreach ($categories as $c): ?>
-                    <option value="<?php echo $c['id']; ?>" <?php echo $post['category_id'] == $c['id'] ? 'selected' : ''; ?>><?php echo e($c['name']); ?></option>
+                    <option value="<?php echo $c['id']; ?>" <?php echo ((int)($_POST['category_id'] ?? $post['category_id']) === (int)$c['id']) ? 'selected' : ''; ?>><?php echo e($c['name']); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -168,22 +222,61 @@ require_once __DIR__ . '/includes/header.php';
                 </div>
             </div>
             <div class="form-group">
-                <label><input type="checkbox" name="is_featured" value="1" <?php echo $post['is_featured'] ? 'checked' : ''; ?>> Featured</label>
-                <label><input type="checkbox" name="is_sponsored" value="1" <?php echo !empty($post['is_sponsored']) ? 'checked' : ''; ?>> Sponsored</label>
+                <label><input type="checkbox" name="is_featured" value="1" <?php echo !empty($_POST['is_featured']) ? 'checked' : ''; ?>> Featured</label>
+                <label><input type="checkbox" name="is_sponsored" value="1" <?php echo !empty($_POST['is_sponsored']) ? 'checked' : ''; ?>> Sponsored</label>
+                <label><input type="checkbox" name="is_event" value="1" <?php echo !empty($_POST['is_event']) ? 'checked' : ''; ?>> This is an event</label>
+            </div>
+        </div>
+        <div id="eventFieldsWrap" style="display:<?php echo !empty($_POST['is_event']) ? 'block' : 'none'; ?>;">
+            <h2>Event Details</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="event_type">Event Type</label>
+                    <input type="text" id="event_type" name="event_type" value="<?php echo e($_POST['event_type'] ?? ''); ?>" placeholder="Forum, Workshop, Meetup...">
+                </div>
+                <div class="form-group">
+                    <label for="event_status">Event Status</label>
+                    <select id="event_status" name="event_status">
+                        <option value="upcoming" <?php echo (($_POST['event_status'] ?? 'upcoming') === 'upcoming') ? 'selected' : ''; ?>>Upcoming</option>
+                        <option value="ongoing" <?php echo (($_POST['event_status'] ?? '') === 'ongoing') ? 'selected' : ''; ?>>Ongoing</option>
+                        <option value="completed" <?php echo (($_POST['event_status'] ?? '') === 'completed') ? 'selected' : ''; ?>>Completed</option>
+                        <option value="cancelled" <?php echo (($_POST['event_status'] ?? '') === 'cancelled') ? 'selected' : ''; ?>>Cancelled</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="event_city">City</label>
+                    <input type="text" id="event_city" name="event_city" value="<?php echo e($_POST['event_city'] ?? ''); ?>" placeholder="Dar es Salaam">
+                </div>
+                <div class="form-group">
+                    <label for="event_location">Location / Venue</label>
+                    <input type="text" id="event_location" name="event_location" value="<?php echo e($_POST['event_location'] ?? ''); ?>" placeholder="Mlimani City Conference Hall">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="event_start_at">Event Start *</label>
+                    <input type="datetime-local" id="event_start_at" name="event_start_at" value="<?php echo e($_POST['event_start_at'] ?? ''); ?>">
+                </div>
+                <div class="form-group">
+                    <label for="event_end_at">Event End</label>
+                    <input type="datetime-local" id="event_end_at" name="event_end_at" value="<?php echo e($_POST['event_end_at'] ?? ''); ?>">
+                </div>
             </div>
         </div>
         <div class="form-group">
             <label for="tags">Tags (comma-separated)</label>
-            <input type="text" id="tags" name="tags" value="<?php echo e($tags_str); ?>">
+            <input type="text" id="tags" name="tags" value="<?php echo e($_POST['tags'] ?? $tags_str); ?>">
         </div>
         <div class="form-row">
             <div class="form-group">
                 <label for="meta_title">Meta Title</label>
-                <input type="text" id="meta_title" name="meta_title" value="<?php echo e($post['meta_title'] ?? ''); ?>">
+                <input type="text" id="meta_title" name="meta_title" value="<?php echo e($_POST['meta_title'] ?? ($post['meta_title'] ?? '')); ?>">
             </div>
             <div class="form-group">
                 <label for="meta_description">Meta Description</label>
-                <input type="text" id="meta_description" name="meta_description" value="<?php echo e($post['meta_description'] ?? ''); ?>">
+                <input type="text" id="meta_description" name="meta_description" value="<?php echo e($_POST['meta_description'] ?? ($post['meta_description'] ?? '')); ?>">
             </div>
         </div>
         <div class="form-group">
@@ -195,7 +288,7 @@ require_once __DIR__ . '/includes/header.php';
             <small>Leave empty to keep current.</small>
         </div>
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Update Post</button>
+            <button type="submit" class="btn btn-primary">Update Event</button>
             <a href="<?php echo base_url('admin/posts.php'); ?>" class="btn btn-secondary">Cancel</a>
             <?php if (can_delete_posts()): ?><a href="<?php echo base_url('admin/delete-post.php?id=' . $id); ?>" class="btn btn-danger">Delete</a><?php endif; ?>
         </div>
@@ -205,10 +298,17 @@ require_once __DIR__ . '/includes/header.php';
 (function() {
     var schedule = document.getElementById('publish_mode_schedule');
     var wrap = document.getElementById('scheduleDatetimeWrap');
+    var eventToggle = document.querySelector('input[name="is_event"]');
+    var eventWrap = document.getElementById('eventFieldsWrap');
     if (!schedule || !wrap) return;
     document.querySelectorAll('input[name="publish_mode"]').forEach(function(r) {
         r.addEventListener('change', function() { wrap.style.display = document.getElementById('publish_mode_schedule').checked ? 'block' : 'none'; });
     });
+    if (eventToggle && eventWrap) {
+        eventToggle.addEventListener('change', function() {
+            eventWrap.style.display = eventToggle.checked ? 'block' : 'none';
+        });
+    }
 })();
 </script>
 

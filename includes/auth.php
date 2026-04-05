@@ -93,20 +93,4 @@ function can_manage_users() {
     return is_admin();
 }
 
-// --- CSRF (use on all state-changing forms and actions) ---
-
-function csrf_token() {
-    if (empty($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
-    return $_SESSION['csrf_token'];
-}
-
-function csrf_field() {
-    return '<input type="hidden" name="csrf_token" value="' . e(csrf_token()) . '">';
-}
-
-function csrf_verify() {
-    $token = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '';
-    return $token !== '' && hash_equals((string) csrf_token(), $token);
-}
+// CSRF helpers are defined in includes/functions.php for both public and admin forms.

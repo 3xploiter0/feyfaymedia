@@ -13,18 +13,28 @@ if (is_logged_in()) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!csrf_verify()) {
+    $username = sanitize_plain_text($_POST['username'] ?? '', 80);
+    $password = (string)($_POST['password'] ?? '');
+    $ip = client_ip();
+    $ip_key = 'login:ip:' . $ip;
+    $user_key = 'login:user:' . $ip . ':' . strtolower($username ?: 'unknown');
+
+    if (rate_limit_too_many($ip_key, 20, 900) || rate_limit_too_many($user_key, 8, 900)) {
+        $error = 'Too many login attempts. Please wait 15 minutes and try again.';
+    } elseif (!csrf_verify()) {
         $error = 'Invalid request. Please try again.';
     } else {
-        $username = trim($_POST['username'] ?? '');
-        $password = $_POST['password'] ?? '';
         if (!$username || !$password) {
+            rate_limit_hit($ip_key, 900);
+            rate_limit_hit($user_key, 900);
             $error = 'Please enter username and password.';
         } else {
             $stmt = $pdo->prepare("SELECT id, username, password, role, is_active FROM users WHERE username = ? LIMIT 1");
             $stmt->execute([$username]);
             $user = $stmt->fetch();
             if ($user && (int)($user['is_active'] ?? 1) === 1 && password_verify($password, $user['password'])) {
+                rate_limit_clear($ip_key);
+                rate_limit_clear($user_key);
                 session_regenerate_id(true);
                 $_SESSION['user_id'] = (int) $user['id'];
                 $_SESSION['username'] = $user['username'];
@@ -34,6 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!preg_match('#^[a-z0-9_\-\.]+\.php(\?.*)?$#i', $redirect)) $redirect = 'dashboard.php';
                 redirect(base_url('admin/' . $redirect));
             }
+            rate_limit_hit($ip_key, 900);
+            rate_limit_hit($user_key, 900);
             $error = 'Invalid username or password.';
         }
     }
@@ -63,7 +75,7 @@ if ($error !== '') {
             <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label for="username">Username</label>
-                <input type="text" id="username" name="username" required autofocus value="<?php echo e($_POST['username'] ?? ''); ?>">
+                <input type="text" id="username" name="username" required autofocus value="<?php echo e($username ?? ($_POST['username'] ?? '')); ?>">
             </div>
             <div class="form-group">
                 <label for="password">Password</label>

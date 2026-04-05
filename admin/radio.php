@@ -18,13 +18,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: radio.php');
         exit;
     }
-    $radio_name = trim($_POST['radio_name'] ?? '');
-    $radio_description = trim($_POST['radio_description'] ?? '');
-    $stream_url = trim($_POST['stream_url'] ?? '');
-    $embed_code = trim($_POST['embed_code'] ?? '');
+    $radio_name = sanitize_plain_text($_POST['radio_name'] ?? '', 100);
+    $radio_description = strip_tags(trim((string)($_POST['radio_description'] ?? '')));
+    $stream_url = normalize_http_url($_POST['stream_url'] ?? '');
+    $embed_code = sanitize_embed_code($_POST['embed_code'] ?? '');
     $radio_is_live = isset($_POST['radio_is_live']) ? 1 : 0;
-    $now_playing = trim($_POST['now_playing'] ?? '');
-    $radio_button_text = trim($_POST['radio_button_text'] ?? '') ?: 'Listen Live';
+    $now_playing = sanitize_plain_text($_POST['now_playing'] ?? '', 255);
+    $radio_button_text = sanitize_plain_text($_POST['radio_button_text'] ?? '', 50) ?: 'Listen Live';
 
     $stmt = $pdo->prepare("UPDATE settings SET radio_name=?, radio_description=?, stream_url=?, embed_code=?, radio_is_live=?, now_playing=?, radio_button_text=? WHERE id=1");
     $stmt->execute([$radio_name ?: null, $radio_description ?: null, $stream_url ?: null, $embed_code ?: null, $radio_is_live, $now_playing ?: null, $radio_button_text]);

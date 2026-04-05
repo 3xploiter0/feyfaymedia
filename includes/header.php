@@ -13,6 +13,8 @@ $site_logo = !empty($settings['site_logo']) ? $settings['site_logo'] : 'assets/i
 $categories = get_categories($pdo);
 $req = isset($_SERVER['REQUEST_URI']) ? ltrim($_SERVER['REQUEST_URI'], '/') : '';
 $canonical_url = isset($canonical_url) ? $canonical_url : base_url($req ?: '');
+$current_script = basename($_SERVER['SCRIPT_NAME'] ?? 'index.php');
+$current_slug = trim((string)($_GET['slug'] ?? ''));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -51,16 +53,17 @@ $canonical_url = isset($canonical_url) ? $canonical_url : base_url($req ?: '');
             <button class="nav-toggle" id="navToggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
             <nav class="main-nav" id="mainNav">
                 <ul>
-                    <li><a href="<?php echo base_url(); ?>">Home</a></li>
+                    <li><a class="<?php echo ($current_script === 'index.php' || $current_script === '') ? 'is-active' : ''; ?>" href="<?php echo base_url(); ?>">Home</a></li>
+                    <li><a class="<?php echo $current_script === 'events.php' ? 'is-active' : ''; ?>" href="<?php echo base_url('events.php'); ?>">Events</a></li>
                     <?php foreach ($categories as $cat): ?>
-                    <li><a href="<?php echo base_url('category.php?slug=' . e($cat['slug'])); ?>"><?php echo e($cat['name']); ?></a></li>
+                    <li><a class="<?php echo ($current_script === 'category.php' && $current_slug === (string)$cat['slug']) ? 'is-active' : ''; ?>" href="<?php echo base_url('category.php?slug=' . e($cat['slug'])); ?>"><?php echo e($cat['name']); ?></a></li>
                     <?php endforeach; ?>
-                    <li><a href="<?php echo base_url('about.php'); ?>">About</a></li>
-                    <li><a href="<?php echo base_url('live-radio.php'); ?>">Live Radio</a></li>
-                    <li><a href="<?php echo base_url('contact.php'); ?>">Contact</a></li>
+                    <li><a class="<?php echo $current_script === 'about.php' ? 'is-active' : ''; ?>" href="<?php echo base_url('about.php'); ?>">About</a></li>
+                    <li><a class="<?php echo $current_script === 'live-radio.php' ? 'is-active' : ''; ?>" href="<?php echo base_url('live-radio.php'); ?>">Live Radio</a></li>
+                    <li><a class="<?php echo $current_script === 'contact.php' ? 'is-active' : ''; ?>" href="<?php echo base_url('contact.php'); ?>">Contact</a></li>
                 </ul>
                 <form class="header-search" action="<?php echo base_url('search.php'); ?>" method="get" role="search">
-                    <input type="search" name="q" placeholder="Search..." value="<?php echo e($_GET['q'] ?? ''); ?>" aria-label="Search articles">
+                    <input type="search" name="q" placeholder="Search events..." value="<?php echo e($_GET['q'] ?? ''); ?>" aria-label="Search event updates">
                     <button type="submit">Search</button>
                 </form>
             </nav>
