@@ -13,6 +13,8 @@ $site_logo = !empty($settings['site_logo']) ? $settings['site_logo'] : 'assets/i
 $categories = get_categories($pdo);
 $req = isset($_SERVER['REQUEST_URI']) ? ltrim($_SERVER['REQUEST_URI'], '/') : '';
 $canonical_url = isset($canonical_url) ? $canonical_url : base_url($req ?: '');
+$today_label = date('l, F j, Y');
+$radio_is_live = !empty($settings['radio_is_live']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -39,28 +41,51 @@ $canonical_url = isset($canonical_url) ? $canonical_url : base_url($req ?: '');
     <link rel="stylesheet" href="<?php echo base_url('assets/css/responsive.css'); ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
 <header class="site-header">
+    <div class="header-utility">
+        <div class="container header-utility-inner">
+            <p class="utility-date"><?php echo e($today_label); ?></p>
+            <div class="utility-meta">
+                <span class="utility-tagline"><?php echo $site_desc; ?></span>
+                <?php if ($radio_is_live): ?>
+                <a href="<?php echo base_url('live-radio.php'); ?>" class="utility-live-pill">Live Radio</a>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
     <div class="header-top">
-        <div class="container header-inner">
+        <div class="container masthead">
             <a href="<?php echo base_url(); ?>" class="logo">
                 <img src="<?php echo base_url(e($site_logo)); ?>" alt="<?php echo $site_name; ?>">
+                <span class="logo-text">
+                    <span class="logo-name"><?php echo $site_name; ?></span>
+                    <span class="logo-tagline">Stories, features and live coverage</span>
+                </span>
             </a>
-            <button class="nav-toggle" id="navToggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+            <form class="header-search header-search-desktop" action="<?php echo base_url('search.php'); ?>" method="get" role="search">
+                <input type="search" name="q" placeholder="Search articles" value="<?php echo e($_GET['q'] ?? ''); ?>" aria-label="Search articles">
+                <button type="submit">Search</button>
+            </form>
+        </div>
+    </div>
+    <div class="header-nav-bar">
+        <div class="container header-nav-inner">
+            <button class="nav-toggle" id="navToggle" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle menu"><span></span><span></span><span></span></button>
             <nav class="main-nav" id="mainNav">
                 <ul>
                     <li><a href="<?php echo base_url(); ?>">Home</a></li>
-                    <?php foreach ($categories as $cat): ?>
+                    <?php foreach (array_slice($categories, 0, 6) as $cat): ?>
                     <li><a href="<?php echo base_url('category.php?slug=' . e($cat['slug'])); ?>"><?php echo e($cat['name']); ?></a></li>
                     <?php endforeach; ?>
                     <li><a href="<?php echo base_url('about.php'); ?>">About</a></li>
                     <li><a href="<?php echo base_url('live-radio.php'); ?>">Live Radio</a></li>
                     <li><a href="<?php echo base_url('contact.php'); ?>">Contact</a></li>
                 </ul>
-                <form class="header-search" action="<?php echo base_url('search.php'); ?>" method="get" role="search">
-                    <input type="search" name="q" placeholder="Search..." value="<?php echo e($_GET['q'] ?? ''); ?>" aria-label="Search articles">
+                <form class="header-search header-search-mobile" action="<?php echo base_url('search.php'); ?>" method="get" role="search">
+                    <input type="search" name="q" placeholder="Search articles" value="<?php echo e($_GET['q'] ?? ''); ?>" aria-label="Search articles">
                     <button type="submit">Search</button>
                 </form>
             </nav>

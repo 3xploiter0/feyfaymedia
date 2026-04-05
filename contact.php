@@ -62,9 +62,14 @@ if ($message !== '') {
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="container content-wrap">
+<div class="container content-wrap page-shell">
     <div class="content-main static-page">
-        <h1 class="page-title">Contact</h1>
+        <section class="page-intro">
+            <p class="section-kicker">Contact</p>
+            <h1 class="page-title">Get in touch</h1>
+            <p class="page-description">Send a message, share a tip, or subscribe to the newsletter.</p>
+        </section>
+        <div class="surface-card">
         <form class="contact-form" method="post" action="">
             <div class="form-group">
                 <label for="name">Name *</label>
@@ -84,6 +89,7 @@ require_once __DIR__ . '/includes/header.php';
             </div>
             <button type="submit" class="btn btn-primary">Send</button>
         </form>
+        </div>
     </div>
     <?php require_once __DIR__ . '/includes/sidebar.php'; ?>
 </div>

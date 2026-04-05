@@ -30,10 +30,14 @@ $current_page = $page;
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="container content-wrap">
+<div class="container content-wrap page-shell">
     <div class="content-main">
-        <section class="section">
+        <section class="page-intro">
+            <p class="section-kicker">Category</p>
             <h1 class="page-title"><?php echo e($category['name']); ?></h1>
+            <p class="page-description">Browse the latest posts and updates from this section.</p>
+        </section>
+        <section class="section">
             <?php if (empty($posts)): ?>
             <p class="no-posts">No articles in this category yet.</p>
             <?php else: ?>

@@ -27,10 +27,14 @@ if ($q !== '') {
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="container content-wrap">
+<div class="container content-wrap page-shell">
     <div class="content-main">
-        <section class="section search-page">
+        <section class="page-intro">
+            <p class="section-kicker">Search</p>
             <h1 class="page-title">Search</h1>
+            <p class="page-description">Find articles, topics, and past stories from the archive.</p>
+        </section>
+        <section class="section search-page surface-card">
             <form class="search-form" action="<?php echo base_url('search.php'); ?>" method="get">
                 <input type="search" name="q" value="<?php echo e($q); ?>" placeholder="Search articles..." required>
                 <button type="submit" class="btn btn-primary">Search</button>

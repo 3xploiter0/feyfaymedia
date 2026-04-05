@@ -22,13 +22,14 @@ $show_player = $is_live && ($stream_url !== '' || $embed_code !== '');
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="container content-wrap">
+<div class="container content-wrap page-shell">
     <div class="content-main static-page radio-page">
-        <h1 class="page-title"><?php echo e($radio_name); ?></h1>
-
-        <?php if ($radio_description): ?>
-        <p class="radio-description"><?php echo nl2br(e($radio_description)); ?></p>
-        <?php endif; ?>
+        <section class="page-intro">
+            <p class="section-kicker">Radio</p>
+            <h1 class="page-title"><?php echo e($radio_name); ?></h1>
+            <p class="page-description"><?php echo e($radio_description ?: 'Listen to live radio and station updates.'); ?></p>
+        </section>
+        <div class="surface-card">
 
         <div class="radio-status-wrap">
             <?php if ($show_player): ?>
@@ -71,6 +72,7 @@ require_once __DIR__ . '/includes/header.php';
             <p>Radio is currently offline. Please check back later.</p>
         </div>
         <?php endif; ?>
+        </div>
     </div>
     <?php require_once __DIR__ . '/includes/sidebar.php'; ?>
 </div>
